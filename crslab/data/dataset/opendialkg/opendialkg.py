@@ -7,6 +7,11 @@
 # @Author : Kun Zhou, Xiaolei Wang
 # @Email  : francis_kun_zhou@163.com, wxl1999@foxmail.com
 
+# UPDATE:
+# @Time   : 2023/10/9
+# @Author : Siyuan Lu
+# @Email  : lusiyuanzs@gmail.com
+
 r"""
 OpenDialKG
 ==========
@@ -69,21 +74,23 @@ class OpenDialKGDataset(BaseDataset):
         resource = resources[tokenize]
         self.special_token_idx = resource['special_token_idx']
         self.unk_token_idx = self.special_token_idx['unk']
-        dpath = os.path.join(DATASET_PATH, 'opendialkg')
+        dpath = os.path.join(DATASET_PATH, 'opendialkg', tokenize)
         super().__init__(opt, dpath, resource, restore, save)
 
     def _load_data(self):
         train_data, valid_data, test_data = self._load_raw_data()
-        self._load_vocab()
+        # self._load_vocab()
         self._load_other_data()
 
         vocab = {
-            'tok2ind': self.tok2ind,
-            'ind2tok': self.ind2tok,
+            # 'tok2ind': self.tok2ind,
+            # 'ind2tok': self.ind2tok,
             'entity2id': self.entity2id,
             'id2entity': self.id2entity,
             'word2id': self.word2id,
-            'vocab_size': len(self.tok2ind),
+            'id2info': self.id2info,
+            'id2entityid': self.id2entityid,
+            # 'vocab_size': len(self.tok2ind),
             'n_entity': self.n_entity,
             'n_word': self.n_word,
         }
@@ -93,15 +100,15 @@ class OpenDialKGDataset(BaseDataset):
 
     def _load_raw_data(self):
         # load train/valid/test data
-        with open(os.path.join(self.dpath, 'train_data.json'), 'r', encoding='utf-8') as f:
-            train_data = json.load(f)
-            logger.debug(f"[Load train data from {os.path.join(self.dpath, 'train_data.json')}]")
-        with open(os.path.join(self.dpath, 'valid_data.json'), 'r', encoding='utf-8') as f:
-            valid_data = json.load(f)
-            logger.debug(f"[Load valid data from {os.path.join(self.dpath, 'valid_data.json')}]")
-        with open(os.path.join(self.dpath, 'test_data.json'), 'r', encoding='utf-8') as f:
-            test_data = json.load(f)
-            logger.debug(f"[Load test data from {os.path.join(self.dpath, 'test_data.json')}]")
+        with open(os.path.join(self.dpath, 'train_data_id.json'), 'r', encoding='utf-8') as f:
+            train_data = set(json.load(f))
+            logger.debug(f"[Load train data from {os.path.join(self.dpath, 'train_data_id.json')}]")
+        with open(os.path.join(self.dpath, 'valid_data_id.json'), 'r', encoding='utf-8') as f:
+            valid_data = set(json.load(f))
+            logger.debug(f"[Load valid data from {os.path.join(self.dpath, 'valid_data_id.json')}]")
+        with open(os.path.join(self.dpath, 'test_data_id.json'), 'r', encoding='utf-8') as f:
+            test_data = set(json.load(f))
+            logger.debug(f"[Load test data from {os.path.join(self.dpath, 'test_data_id.json')}]")
 
         return train_data, valid_data, test_data
 
@@ -116,13 +123,13 @@ class OpenDialKGDataset(BaseDataset):
     def _load_other_data(self):
         # opendialkg
         self.entity2id = json.load(
-            open(os.path.join(self.dpath, 'entity2id.json'), encoding='utf-8'))  # {entity: entity_id}
+            open(os.path.join(self.dpath, 'entity2id.json'), 'r', encoding='utf-8')) # {entity: entity_id}
         self.id2entity = {idx: entity for entity, idx in self.entity2id.items()}
         self.n_entity = max(self.entity2id.values()) + 1
         # {head_entity_id: [(relation_id, tail_entity_id)]}
-        self.entity_kg = open(os.path.join(self.dpath, 'opendialkg_subkg.txt'), encoding='utf-8')
+        self.entity_kg = open(os.path.join(self.dpath, 'kg.json'), encoding='utf-8')
         logger.debug(
-            f"[Load entity dictionary and KG from {os.path.join(self.dpath, 'opendialkg_subkg.json')} and {os.path.join(self.dpath, 'opendialkg_triples.txt')}]")
+            f"[Load entity dictionary and KG from {os.path.join(self.dpath, 'entity2id.json')} and {os.path.join(self.dpath, 'kg.json')}]")
 
         # conceptnet
         # {concept: concept_id}
@@ -133,78 +140,118 @@ class OpenDialKGDataset(BaseDataset):
         logger.debug(
             f"[Load word dictionary and KG from {os.path.join(self.dpath, 'word2id.json')} and {os.path.join(self.dpath, 'concept_subkg.txt')}]")
 
+        self.id2info = json.load(open(os.path.join(self.dpath, 'id2info.json'), 'r', encoding='utf-8'))
+        self.id2name = {}
+        self.id2entityid = {}
+        for id, info in self.id2info.items():
+            self.id2name[id] = info['name']
+            if info['name'] in self.entity2id:
+                self.id2entityid[id] = self.entity2id[info['name']]
+        logger.debug(f"[Load vocab from {os.path.join(self.dpath, 'id2info.json')}]")
+
     def _data_preprocess(self, train_data, valid_data, test_data):
-        processed_train_data = self._raw_data_process(train_data)
-        logger.debug("[Finish train data process]")
-        processed_valid_data = self._raw_data_process(valid_data)
-        logger.debug("[Finish valid data process]")
-        processed_test_data = self._raw_data_process(test_data)
-        logger.debug("[Finish test data process]")
+        processed_train_data, processed_valid_data, processed_test_data = self._raw_data_process(train_data, valid_data, test_data)
+        logger.debug("[Finish raw data process]")
         processed_side_data = self._side_data_process()
         logger.debug("[Finish side data process]")
         return processed_train_data, processed_valid_data, processed_test_data, processed_side_data
 
-    def _raw_data_process(self, raw_data):
-        augmented_convs = [self._convert_to_id(conversation) for conversation in tqdm(raw_data)]
-        augmented_conv_dicts = []
-        for conv in tqdm(augmented_convs):
-            augmented_conv_dicts.extend(self._augment_and_add(conv))
-        return augmented_conv_dicts
+    def _raw_data_process(self, train_data, valid_data, test_data):
+        augmented_train_data = []
+        augmented_valid_data = []
+        augmented_test_data = []
+        augmented_convs = []
 
-    def _convert_to_id(self, conversation):
+        with open(os.path.join(self.dpath, 'data.jsonl'), 'r', encoding="utf-8") as f:
+            lines = f.readlines()
+            for line in lines:
+                dialog = json.loads(line)
+                dialog_turn_id, augmented_convs = self._merge_conv_data(dialog, train_data, valid_data, test_data)
+                if dialog_turn_id in train_data:
+                    augmented_train_data.append(augmented_convs)
+                if dialog_turn_id in valid_data:
+                    augmented_valid_data.append(augmented_convs)
+                if dialog_turn_id in test_data:
+                    augmented_test_data.append(augmented_convs)
+
+        augmented_train_dicts = []
+        augmented_valid_dicts = []
+        augmented_test_dicts = []
+
+        for conv in tqdm(augmented_train_data):
+            augmented_train_dicts.extend(self._augment_and_add(conv))
+        for conv in tqdm(augmented_valid_data):
+            augmented_valid_dicts.extend(self._augment_and_add(conv))
+        for conv in tqdm(augmented_test_data):
+            augmented_test_dicts.extend(self._augment_and_add(conv))
+
+        return augmented_train_dicts, augmented_valid_dicts, augmented_test_dicts
+
+    def _merge_conv_data(self, conversation, train_data, valid_data, test_data):
         augmented_convs = []
         last_role = None
         for utt in conversation['dialog']:
-            text_token_ids = [self.tok2ind.get(word, self.unk_token_idx) for word in utt["text"]]
+            role = utt['role']
+            text = utt['text']
+            entity_turn = utt['entity']
+            item_turn = utt['item']
+
             item_ids = [self.entity2id[movie] for movie in utt['item'] if movie in self.entity2id]
             entity_ids = [self.entity2id[entity] for entity in utt['entity'] if entity in self.entity2id]
-            word_ids = [self.word2id[word] for word in utt['word'] if word in self.word2id]
+            dialog_turn_id = str(conversation['dialog_id']) + '_' + str(utt['turn_id'])
 
-            if utt["role"] == last_role:
-                augmented_convs[-1]["text"] += text_token_ids
+            if role == 'assistant':
+                role = 'Recommender'
+            elif role == 'user':
+                role = 'User'
+
+            if role == last_role:
+                augmented_convs[-1]["text"] += text
                 augmented_convs[-1]["item"] += item_ids
                 augmented_convs[-1]["entity"] += entity_ids
-                augmented_convs[-1]["word"] += word_ids
             else:
                 augmented_convs.append({
-                    "role": utt["role"],
-                    "text": text_token_ids,
+                    "dialog_id": dialog_turn_id,
+                    "role": role,
+                    "text": text,
                     "entity": entity_ids,
                     "item": item_ids,
-                    "word": word_ids
                 })
-            last_role = utt["role"]
+            last_role = role
 
-        return augmented_convs
+            if dialog_turn_id in train_data or dialog_turn_id in valid_data or dialog_turn_id in test_data:
+                return dialog_turn_id, augmented_convs
 
     def _augment_and_add(self, raw_conv_dict):
         augmented_conv_dicts = []
-        context_tokens, context_entities, context_words, context_items = [], [], [], []
+        context, context_entities, context_words, context_items = [], [], [], []
         entity_set, word_set = set(), set()
         for i, conv in enumerate(raw_conv_dict):
-            text_tokens, entities, items, words = conv["text"], conv["entity"], conv["item"], conv["word"]
-            if len(context_tokens) > 0:
+            # text_tokens, entities, items, words = conv["text"], conv["entity"], conv["item"], conv["word"]
+            text, entities, items = conv["text"], conv["entity"], conv["item"]
+            if len(context) > 0:
                 conv_dict = {
+                    "dialog_id": conv['dialog_id'],
                     'role': conv['role'],
-                    "context_tokens": copy(context_tokens),
-                    "response": text_tokens,
+                    "context": copy(context),
+                    "response": text,
                     "context_entities": copy(context_entities),
-                    "context_words": copy(context_words),
+                    # "context_words": copy(context_words),
                     'context_items': copy(context_items),
                     "items": items,
                 }
                 augmented_conv_dicts.append(conv_dict)
 
-            context_tokens.append(text_tokens)
+            context.append(text)
             context_items += items
             for entity in entities + items:
                 if entity not in entity_set:
                     entity_set.add(entity)
                     context_entities.append(entity)
-            for word in words:
-                if word not in word_set:
-                    word_set.add(word)
-                    context_words.append(word)
+            # for word in words:
+            #     if word not in word_set:
+            #         word_set.add(word)
+            #         context_words.append(word)
 
         return augmented_conv_dicts
 
@@ -275,3 +322,36 @@ class OpenDialKGDataset(BaseDataset):
     def get_attr_list(self):
         attr_list = ['genre', 'actor', 'director', 'writer']
         return attr_list
+
+    def get_ask_instruction(self):
+        ask_instruction = '''To recommend me items that I will accept, you can choose one of the following options.
+A: ask my preference for genre
+B: ask my preference for actor
+C: ask my preference for director
+D: ask my preference for writer
+E: I can directly give recommendations
+You have selected {}, do not repeat them. Please enter the option character.'''
+        option2attr = {
+            'A': 'genre',
+            'B': 'actor',
+            'C': 'director',
+            'D': 'writer',
+            'E': 'recommend'
+        }
+        option2template = {
+            'A': 'Which genre do you like?',
+            'B': 'Which actor do you like?',
+            'C': 'Which director do you like?',
+            'D': 'Which writer do you like?',
+        }
+
+        rec_instruction = 'Please give me 10 recommendations according to my preference (Format: no. title. No other things except the item list in your response). You can recommend mentioned items in our dialog.'
+
+        ask_instruction_dict = {
+            'ask_instruction': ask_instruction,
+            'option2attr': option2attr,
+            'option2template': option2template,
+            'rec_instruction': rec_instruction
+        }
+
+        return ask_instruction_dict

@@ -12,6 +12,11 @@
 # @Author : Xinyu Tang
 # @Email  : txy20010310@163.com
 
+# UPDATE:
+# @Time   : 2023/10/9
+# @Author : Siyuan Lu
+# @Email  : lusiyuanzs@gmail.com
+
 r"""
 ReDial
 ======
@@ -89,6 +94,8 @@ class ReDialDataset(BaseDataset):
             'entity2id': self.entity2id,
             'id2entity': self.id2entity,
             'word2id': self.word2id,
+            'id2info': self.id2info,
+            'id2entityid': self.id2entityid,
             # 'vocab_size': len(self.tok2ind),
             'n_entity': self.n_entity,
             'n_word': self.n_word,
@@ -142,7 +149,7 @@ class ReDialDataset(BaseDataset):
         # {head_entity_id: [(relation_id, tail_entity_id)]}
         self.entity_kg = json.load(open(os.path.join(self.dpath, 'kg.json'), 'r', encoding='utf-8'))
         logger.debug(
-            f"[Load entity dictionary and KG from {os.path.join(self.dpath, 'entity2id.json')} and {os.path.join(self.dpath, 'dbpedia_subkg.json')}]")
+            f"[Load entity dictionary and KG from {os.path.join(self.dpath, 'entity2id.json')} and {os.path.join(self.dpath, 'kg.json')}]")
 
         # conceptNet
         # {concept: concept_id}
@@ -152,12 +159,15 @@ class ReDialDataset(BaseDataset):
         self.word_kg = open(os.path.join(self.dpath, 'conceptnet_subkg.txt'), 'r', encoding='utf-8')
         logger.debug(
             f"[Load word dictionary and KG from {os.path.join(self.dpath, 'concept2id.json')} and {os.path.join(self.dpath, 'conceptnet_subkg.txt')}]")
-        with open(os.path.join(self.dpath, 'id2info.json'), 'r', encoding='utf-8') as f:
-            id2info = json.load(f)
-        self.id2name = {}
-        for id, info in id2info.items():
-            self.id2name[id] = info['name']
 
+        self.id2info = json.load(open(os.path.join(self.dpath, 'id2info.json'), 'r', encoding='utf-8'))
+        self.id2name = {}
+        self.id2entityid = {}
+        for id, info in self.id2info.items():
+            self.id2name[id] = info['name']
+            if info['name'] in self.entity2id:
+                self.id2entityid[id] = self.entity2id[info['name']]
+        logger.debug(f"[Load vocab from {os.path.join(self.dpath, 'id2info.json')}]")
 
     def _data_preprocess(self, train_data, valid_data, test_data):
         processed_train_data = self._raw_data_process(train_data)

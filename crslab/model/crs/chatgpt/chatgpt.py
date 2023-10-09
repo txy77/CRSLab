@@ -2,6 +2,11 @@
 # @Author : Xinyu Tang
 # @Email  : txy20010310@163.com
 
+# UPDATE:
+# @Time   : 2023/10/9
+# @Author : Siyuan Lu
+# @Email  : lusiyuanzs@gmail.com
+
 import json
 import os
 import numpy as np
@@ -115,23 +120,15 @@ def annotate_chat(messages, logit_bias=None):
 
 class ChatGPTModel(BaseModel):
     
-    def __init__(self, opt, device, vocab=None, side_data=None):
+    def __init__(self, opt, device, vocab, side_data=None):
         self.dataset = opt['dataset']
         self.dataset_path = os.path.join(DATASET_PATH, self.dataset)
         self.item_embedding_path = os.path.join(SAVE_PATH, self.dataset, 'embed')
-        
-        with open(f"{self.dataset_path}/entity2id.json", 'r', encoding="utf-8") as f:
-            self.entity2id = json.load(f)
-        self.id2entity = {}
-        for entity, idx in self.entity2id.items():
-            self.id2entity[idx] = entity
-        with open(f"{self.dataset_path}/id2info.json", 'r', encoding="utf-8") as f:
-            self.id2info = json.load(f)
-        
-        self.id2entityid = {}
-        for id, info in self.id2info.items():
-            if info['name'] in self.entity2id:
-                self.id2entityid[id] = self.entity2id[info['name']]
+
+        self.entity2id = vocab['entity2id']
+        self.id2entity = vocab['id2entity']
+        self.id2info = vocab['id2info']
+        self.id2entityid = vocab['id2entityid']
         
         self.get_item_embedding()
         super(ChatGPTModel, self).__init__(opt, device)
