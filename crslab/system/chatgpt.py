@@ -2,6 +2,11 @@
 # @Author : Xinyu Tang
 # @Email  : txy20010310@163.com
 
+# UPDATE:
+# @Time   : 2023/10/9
+# @Author : Siyuan Lu
+# @Email  : lusiyuanzs@gmail.com
+
 import os
 import json
 import random
@@ -44,8 +49,7 @@ class ChatGPTSystem(BaseSystem):
         os.makedirs(self.chat_save_dir, exist_ok=True)
         self.ask_save_dir = os.path.join(SAVE_PATH, self.dataset, 'ask')
         os.makedirs(self.ask_save_dir, exist_ok=True)
-        with open(os.path.join(self.dpath, 'id2info.json'), 'r', encoding='utf-8') as f:
-            self.id2info = json.load(f)
+        self.id2info = vocab['id2info']
         self.test_dataloader = test_dataloader
         self.rec_optim_opt = opt['rec']
         self.conv_optim_opt = opt['conv']
@@ -57,7 +61,7 @@ class ChatGPTSystem(BaseSystem):
         self.turn_num = opt['turn_num']
         self.dataset_class = dataset_register_table[self.dataset](opt, opt['tokenize'])
         crs_model_name = opt['model_name']
-        self.crs_model = Model_register_table[crs_model_name](opt, opt['device'])
+        self.crs_model = Model_register_table[crs_model_name](opt, opt['device'], vocab)
     
     def my_before_sleep(self, retry_state):
         logger.debug(f'Retrying: attempt {retry_state.attempt_number} ended with: {retry_state.outcome}, spend {retry_state.seconds_since_start} in total')
